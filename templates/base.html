@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-gray-50">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DocIntelli Platform</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.2.4/dist/purify.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        [x-cloak] { display: none !important; }
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(229, 231, 235, 0.5);
+        }
+    </style>
+</head>
+<body class="h-full flex overflow-hidden">
+
+    <!-- Sidebar -->
+    <div class="w-64 bg-slate-900 text-white flex flex-col flex-shrink-0 transition-all duration-300">
+        <div class="p-6 flex items-center gap-3 border-b border-slate-800">
+            <div class="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center">
+                <i class="fa-solid fa-brain"></i>
+            </div>
+            <span class="font-bold text-lg tracking-tight">DocIntelli AI</span>
+        </div>
+
+        <nav class="flex-1 px-4 py-6 space-y-2">
+            <a href="/" class="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-slate-800 transition-colors {{ 'bg-slate-800 text-blue-400' if request.path == '/' else 'text-slate-400' }}">
+                <i class="fa-solid fa-chart-pie w-5"></i>
+                <span class="font-medium">Dashboard</span>
+            </a>
+            <a href="/agents" class="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-slate-800 transition-colors {{ 'bg-slate-800 text-blue-400' if request.path == '/agents' else 'text-slate-400' }}">
+                <i class="fa-solid fa-robot w-5"></i>
+                <span class="font-medium">Agent Workflows</span>
+            </a>
+            <a href="/documents" class="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-slate-800 transition-colors {{ 'bg-slate-800 text-blue-400' if request.path.startswith('/documents') else 'text-slate-400' }}">
+                <i class="fa-solid fa-file-lines w-5"></i>
+                <span class="font-medium">Documents</span>
+            </a>
+            <a href="/chat" class="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-slate-800 transition-colors {{ 'bg-slate-800 text-blue-400' if request.path.startswith('/chat') else 'text-slate-400' }}">
+                <i class="fa-solid fa-comments w-5"></i>
+                <span class="font-medium">Chat with Data</span>
+            </a>
+        </nav>
+
+        <div class="p-4 border-t border-slate-800">
+            <div class="flex items-center gap-3">
+                <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-500 to-purple-500"></div>
+                <div>
+                    <p class="text-sm font-medium">Ali Haider</p>
+                    <p class="text-xs text-slate-500">Admin</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="flex-1 flex flex-col min-w-0 overflow-hidden bg-gray-50">
+        <!-- Top Header -->
+        <header class="bg-white border-b border-gray-200 h-16 flex items-center justify-between px-8">
+            <h1 class="text-xl font-semibold text-gray-800">
+                {% block header %}Dashboard{% endblock %}
+            </h1>
+            <div class="flex items-center gap-4">
+                <button class="p-2 text-gray-400 hover:text-gray-600"><i class="fa-regular fa-bell"></i></button>
+                <button class="p-2 text-gray-400 hover:text-gray-600"><i class="fa-solid fa-gear"></i></button>
+            </div>
+        </header>
+
+        <main class="flex-1 overflow-y-auto p-8">
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+</body>
+</html>

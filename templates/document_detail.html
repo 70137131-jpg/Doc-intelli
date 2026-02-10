@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+
+{% block header %}Document Details{% endblock %}
+
+{% block content %}
+{% if doc and not doc.get('error') %}
+<div class="space-y-6">
+    <!-- Document Header -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+        <div class="flex items-start justify-between">
+            <div>
+                <h2 class="text-2xl font-bold text-gray-900">{{ doc.original_filename or doc.filename }}</h2>
+                <div class="flex items-center gap-4 mt-2 text-sm text-gray-500">
+                    <span><i class="fa-solid fa-file mr-1"></i>{{ doc.mime_type or 'Unknown' }}</span>
+                    <span><i class="fa-solid fa-weight-hanging mr-1"></i>{{ (doc.file_size_bytes or doc.file_size) | filesize if (doc.file_size_bytes or doc.file_size) else 'Unknown' }}</span>
+                    <span><i class="fa-solid fa-copy mr-1"></i>{{ doc.page_count or '?' }} pages</span>
+                    <span class="px-2 py-1 rounded-full text-xs font-medium
+                        {% if doc.status == 'completed' %}bg-green-100 text-green-700
+                        {% elif doc.status == 'processing' %}bg-yellow-100 text-yellow-700
+                        {% elif doc.status == 'failed' %}bg-red-100 text-red-700
+                        {% else %}bg-gray-100 text-gray-700{% endif %}">
+                        {{ doc.status or 'pending' }}
+                    </span>
+                </div>
+            </div>
+            <a href="/documents" class="text-gray-400 hover:text-gray-600">
+                <i class="fa-solid fa-arrow-left mr-1"></i> Back
+            </a>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Classification -->
+        <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+            <h3 class="font-semibold text-gray-800 mb-4"><i class="fa-solid fa-tag mr-2 text-blue-500"></i>Classification</h3>
+            {% if classification %}
+            <div class="space-y-3">
+                <div class="flex justify-between">
+                    <span class="text-gray-500">Document Type</span>
+                    <span class="font-bold text-lg text-blue-600">{{ classification.document_type or classification.category or 'Unknown' }}</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-gray-500">Confidence</span>
+                    <span class="font-medium">{{ "%.1f" | format((classification.confidence or 0) * 100) }}%</span>
+                </div>
+                {% if classification.method %}
+                <div class="flex justify-between">
+                    <span class="text-gray-500">Method</span>
+                    <span class="text-sm text-gray-600">{{ classification.method }}</span>
+                </div>
+                {% endif %}
+            </div>
+            {% else %}
+            <p class="text-gray-400">Not classified yet.</p>
+            {% endif %}
+        </div>
+
+        <!-- Extracted Fields -->
+        <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+            <h3 class="font-semibold text-gray-800 mb-4"><i class="fa-solid fa-list-check mr-2 text-purple-500"></i>Extracted Fields</h3>
+            {% if fields and fields.get('fields') %}
+            <div class="space-y-2">
+                {% for field in fields.fields %}
+                <div class="flex justify-between items-center py-1 border-b border-gray-50">
+                    <span class="text-gray-500 text-sm">{{ field.field_name }}</span>
+                    <span class="font-medium text-sm text-gray-900 max-w-xs truncate">{{ field.field_value }}</span>
+                </div>
+                {% endfor %}
+            </div>
+            {% elif fields is sequence and fields is not string %}
+            <div class="space-y-2">
+                {% for field in fields %}
+                <div class="flex justify-between items-center py-1 border-b border-gray-50">
+                    <span class="text-gray-500 text-sm">{{ field.field_name }}</span>
+                    <span class="font-medium text-sm text-gray-900 max-w-xs truncate">{{ field.field_value }}</span>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-gray-400">No fields extracted yet.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Chunks -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+        <div class="px-6 py-4 border-b border-gray-100">
+            <h3 class="font-semibold text-gray-800"><i class="fa-solid fa-puzzle-piece mr-2 text-green-500"></i>Text Chunks</h3>
+        </div>
+        {% if chunks %}
+        <div class="divide-y divide-gray-100 max-h-96 overflow-y-auto">
+            {% for chunk in chunks if chunk is mapping %}
+            <div class="px-6 py-4 hover:bg-gray-50">
+                <div class="flex items-center gap-3 mb-2">
+                    <span class="text-xs font-medium bg-gray-100 text-gray-600 px-2 py-1 rounded">Chunk {{ chunk.chunk_index if chunk.chunk_index is defined else loop.index }}</span>
+                    {% if chunk.page_number %}
+                    <span class="text-xs text-gray-400">Page {{ chunk.page_number }}</span>
+                    {% endif %}
+                    {% if chunk.section_header %}
+                    <span class="text-xs text-blue-500">{{ chunk.section_header }}</span>
+                    {% endif %}
+                </div>
+                <p class="text-sm text-gray-700 line-clamp-3 hover:line-clamp-none cursor-pointer">{{ chunk.content }}</p>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="px-6 py-8 text-center text-gray-400">
+            <p>No chunks available. Document may still be processing.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% else %}
+<div class="bg-white rounded-xl shadow-sm border border-gray-100 p-12 text-center">
+    <i class="fa-solid fa-triangle-exclamation text-4xl text-yellow-500 mb-4"></i>
+    <h3 class="text-xl font-semibold text-gray-800 mb-2">Document Not Found</h3>
+    <p class="text-gray-500 mb-4">{{ doc.error if doc and doc.error else 'The requested document could not be loaded.' }}</p>
+    <a href="/documents" class="text-blue-600 hover:underline">Back to Documents</a>
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,54 @@
+model:
+  name: microsoft/deberta-v3-base
+  num_labels: 6
+  max_length: 512
+
+training:
+  learning_rate: 2.0e-5
+  batch_size: 16
+  num_epochs: 5
+  weight_decay: 0.01
+  warmup_ratio: 0.1
+  gradient_accumulation_steps: 2
+  fp16: true
+  evaluation_strategy: epoch
+  save_strategy: epoch
+  load_best_model_at_end: true
+  metric_for_best_model: f1
+
+data:
+  source: rvl_cdip            # synthetic, rvl_cdip, or hybrid
+  max_samples: 10000           # max samples from RVL-CDIP (balanced across categories)
+  train_split: 0.8
+  val_split: 0.1
+  test_split: 0.1
+  categories:
+    - Invoice
+    - Contract
+    - Report
+    - Resume
+    - Letter
+    - Other
+  # RVL-CDIP 16-class → 6-category mapping
+  class_mapping:
+    letter: Letter
+    form: Other
+    email: Letter
+    handwritten: Other
+    advertisement: Other
+    scientific_report: Report
+    scientific_publication: Report
+    specification: Other
+    file_folder: Other
+    news_article: Report
+    budget: Other
+    invoice: Invoice
+    questionnaire: Other
+    resume: Resume
+    memo: Letter
+    presentation: Other
+
+output:
+  model_dir: ./output/model
+  logs_dir: ./output/logs
+  results_dir: ./output/results

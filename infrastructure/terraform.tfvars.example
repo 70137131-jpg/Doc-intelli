@@ -1,0 +1,22 @@
+aws_region    = "us-east-1"
+environment   = "prod"
+project_name  = "docintelli"
+domain_name   = ""
+
+# RDS
+db_instance_class = "db.t3.medium"
+db_name           = "docintelli"
+db_username       = "docintelli"
+db_password       = "CHANGE_ME_TO_A_STRONG_PASSWORD"
+
+# ElastiCache
+redis_node_type = "cache.t3.micro"
+
+# ECS scaling
+backend_desired_count  = 2
+frontend_desired_count = 2
+celery_desired_count   = 2
+
+# Secrets
+jwt_secret_key = "CHANGE_ME_TO_A_RANDOM_SECRET"
+gemini_api_key = "YOUR_GEMINI_API_KEY"

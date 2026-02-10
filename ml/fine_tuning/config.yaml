@@ -1,0 +1,73 @@
+# QLoRA Fine-Tuning Configuration for Document Intelligence
+
+base_model: "mistralai/Mistral-7B-Instruct-v0.3"
+# Alternative: "meta-llama/Meta-Llama-3-8B-Instruct"
+
+# QLoRA parameters
+qlora:
+  r: 16                        # LoRA rank (try 8, 16, 32)
+  lora_alpha: 32               # LoRA alpha (typically 2 * r)
+  lora_dropout: 0.05
+  target_modules:
+    - q_proj
+    - k_proj
+    - v_proj
+    - o_proj
+    - gate_proj
+    - up_proj
+    - down_proj
+  bias: "none"
+  task_type: "CAUSAL_LM"
+
+# Quantization
+quantization:
+  load_in_4bit: true
+  bnb_4bit_quant_type: "nf4"
+  bnb_4bit_compute_dtype: "bfloat16"
+  bnb_4bit_use_double_quant: true
+
+# Training parameters
+training:
+  num_epochs: 3
+  learning_rate: 2.0e-4
+  lr_scheduler_type: "cosine"
+  warmup_ratio: 0.05
+  per_device_train_batch_size: 4
+  per_device_eval_batch_size: 4
+  gradient_accumulation_steps: 4
+  max_seq_length: 2048
+  weight_decay: 0.01
+  fp16: false
+  bf16: true
+  gradient_checkpointing: true
+  optim: "paged_adamw_8bit"
+  logging_steps: 10
+  save_strategy: "epoch"
+  evaluation_strategy: "epoch"
+  load_best_model_at_end: true
+  metric_for_best_model: "eval_loss"
+
+# Dataset
+dataset:
+  source: hybrid               # synthetic, real, or hybrid
+  real_ratio: 0.7              # ratio of real data in hybrid mode
+  real_datasets:               # which real datasets to include
+    - docvqa
+    - squad_v2
+  train_file: "./data/train.jsonl"
+  val_file: "./data/val.jsonl"
+  test_file: "./data/test.jsonl"
+  max_samples: null             # null = use all
+  prompt_template: "alpaca"     # alpaca or sharegpt
+
+# Output
+output:
+  model_dir: "./output/qlora-adapter"
+  merged_dir: "./output/merged-model"
+  logs_dir: "./output/logs"
+
+# Weights & Biases
+wandb:
+  project: "doc-intelli-finetune"
+  entity: null
+  run_name: "qlora-mistral-7b-r16"

@@ -1,0 +1,27 @@
+[
+  {
+    "question": "What is the total amount on the invoice?",
+    "expected_document_type": "Invoice",
+    "relevant_document_ids": []
+  },
+  {
+    "question": "When does the contract expire?",
+    "expected_document_type": "Contract",
+    "relevant_document_ids": []
+  },
+  {
+    "question": "What are the key findings in the report?",
+    "expected_document_type": "Report",
+    "relevant_document_ids": []
+  },
+  {
+    "question": "What programming languages does the candidate know?",
+    "expected_document_type": "Resume",
+    "relevant_document_ids": []
+  },
+  {
+    "question": "Who is the letter addressed to?",
+    "expected_document_type": "Letter",
+    "relevant_document_ids": []
+  }
+]
