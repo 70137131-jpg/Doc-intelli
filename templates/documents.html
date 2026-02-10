@@ -1,0 +1,155 @@
+{% extends "base.html" %}
+
+{% block header %}Documents{% endblock %}
+
+{% block content %}
+<div x-data="documentsApp()">
+
+    <!-- Upload Section -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mb-8">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="font-semibold text-gray-800">Upload Document</h3>
+        </div>
+
+        <div class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-blue-400 transition-colors"
+             @dragover.prevent="dragging = true"
+             @dragleave="dragging = false"
+             @drop.prevent="handleDrop($event)"
+             :class="{ 'border-blue-400 bg-blue-50': dragging }">
+
+            <input type="file" id="fileInput" class="hidden" @change="handleFileSelect($event)"
+                   accept=".pdf,.docx,.txt,.csv,.xlsx">
+
+            <div x-show="!uploading">
+                <i class="fa-solid fa-cloud-arrow-up text-4xl text-gray-400 mb-3"></i>
+                <p class="text-gray-600 mb-2">Drag & drop files here, or
+                    <label for="fileInput" class="text-blue-600 hover:text-blue-700 cursor-pointer font-medium">browse</label>
+                </p>
+                <p class="text-xs text-gray-400">PDF, DOCX, TXT, CSV, XLSX (max {{ max_upload_mb }}MB)</p>
+            </div>
+
+            <div x-show="uploading" class="flex flex-col items-center">
+                <i class="fa-solid fa-circle-notch fa-spin text-3xl text-blue-500 mb-3"></i>
+                <p class="text-gray-600" x-text="uploadStatus"></p>
+            </div>
+        </div>
+
+        <!-- Upload result -->
+        <div x-show="uploadResult" class="mt-4 p-4 rounded-lg" :class="uploadError ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'">
+            <p x-text="uploadResult"></p>
+        </div>
+    </div>
+
+    <!-- Documents List -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+        <div class="px-6 py-4 border-b border-gray-100">
+            <h3 class="font-semibold text-gray-800">All Documents ({{ documents | length }})</h3>
+        </div>
+
+        {% if documents %}
+        <table class="w-full">
+            <thead class="bg-gray-50 text-xs uppercase text-gray-500">
+                <tr>
+                    <th class="px-6 py-3 text-left">Filename</th>
+                    <th class="px-6 py-3 text-left">Type</th>
+                    <th class="px-6 py-3 text-left">Status</th>
+                    <th class="px-6 py-3 text-left">Size</th>
+                    <th class="px-6 py-3 text-left">Pages</th>
+                    <th class="px-6 py-3 text-left">Uploaded</th>
+                    <th class="px-6 py-3 text-left">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+                {% for doc in documents %}
+                <tr class="hover:bg-gray-50">
+                    <td class="px-6 py-3">
+                        <a href="/documents/{{ doc.id or doc.document_id }}" class="text-blue-600 hover:underline font-medium">
+                            <i class="fa-solid fa-file-pdf text-red-400 mr-2"></i>
+                            {{ doc.original_filename or doc.filename or 'Unknown' }}
+                        </a>
+                    </td>
+                    <td class="px-6 py-3 text-sm text-gray-500">{{ doc.mime_type or '-' }}</td>
+                    <td class="px-6 py-3">
+                        <span class="px-2 py-1 rounded-full text-xs font-medium
+                            {% if doc.status == 'completed' %}bg-green-100 text-green-700
+                            {% elif doc.status == 'processing' %}bg-yellow-100 text-yellow-700
+                            {% elif doc.status == 'failed' %}bg-red-100 text-red-700
+                            {% else %}bg-gray-100 text-gray-700{% endif %}">
+                            {{ doc.status or 'pending' }}
+                        </span>
+                    </td>
+                    <td class="px-6 py-3 text-sm text-gray-500">{{ (doc.file_size_bytes or doc.file_size) | filesize if (doc.file_size_bytes or doc.file_size) else '-' }}</td>
+                    <td class="px-6 py-3 text-sm text-gray-500">{{ doc.page_count or '-' }}</td>
+                    <td class="px-6 py-3 text-sm text-gray-500">{{ doc.created_at | datetime if doc.created_at else '-' }}</td>
+                    <td class="px-6 py-3">
+                        <a href="/documents/{{ doc.id or doc.document_id }}" class="text-blue-600 hover:text-blue-700 text-sm">
+                            <i class="fa-solid fa-eye"></i> View
+                        </a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div class="px-6 py-12 text-center text-gray-400">
+            <i class="fa-solid fa-folder-open text-4xl mb-3"></i>
+            <p>No documents uploaded yet. Use the upload area above to get started.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+function documentsApp() {
+    return {
+        dragging: false,
+        uploading: false,
+        uploadStatus: '',
+        uploadResult: '',
+        uploadError: false,
+
+        handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (file) this.uploadFile(file);
+        },
+
+        handleDrop(event) {
+            this.dragging = false;
+            const file = event.dataTransfer.files[0];
+            if (file) this.uploadFile(file);
+        },
+
+        async uploadFile(file) {
+            this.uploading = true;
+            this.uploadResult = '';
+            this.uploadError = false;
+            this.uploadStatus = `Uploading ${file.name}...`;
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const resp = await fetch('/documents/upload', {
+                    method: 'POST',
+                    body: formData,
+                });
+
+                const data = await resp.json();
+                if (resp.ok) {
+                    this.uploadResult = `Uploaded successfully: ${file.name}. Processing started.`;
+                    // Reload page after a short delay
+                    setTimeout(() => location.reload(), 2000);
+                } else {
+                    this.uploadError = true;
+                    this.uploadResult = data.error || 'Upload failed';
+                }
+            } catch (e) {
+                this.uploadError = true;
+                this.uploadResult = 'Upload failed: ' + e.message;
+            }
+            this.uploading = false;
+        }
+    }
+}
+</script>
+{% endblock %}
