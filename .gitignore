@@ -1,0 +1,53 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Environment variables
+.env
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+docker-compose.override.yml
+
+# ML models (downloaded at runtime)
+*.pt
+*.bin
+*.safetensors
+*.onnx
+
+# Test
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Logs
+*.log
+
+# MinIO data (local)
+minio_data/
+
+# Node (frontend)
+node_modules/
+.next/
+out/

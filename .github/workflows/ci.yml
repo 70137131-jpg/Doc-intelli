@@ -1,0 +1,224 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+env:
+  AWS_REGION: us-east-1
+  ECR_BACKEND: docintelli/backend
+  ECR_FRONTEND: docintelli/frontend
+  ECS_CLUSTER: docintelli-cluster
+
+jobs:
+  # ── Lint Backend ──
+  lint-backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install linting tools
+        run: pip install black ruff mypy
+
+      - name: Run black (check)
+        run: black --check --line-length 100 backend/
+
+      - name: Run ruff
+        run: ruff check backend/
+
+  # ── Lint Frontend ──
+  lint-frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Type check
+        working-directory: frontend
+        run: npx tsc --noEmit
+
+  # ── Test Backend ──
+  test-backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: docintelli
+          POSTGRES_PASSWORD: docintelli_dev
+          POSTGRES_DB: docintelli_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y tesseract-ocr poppler-utils libmagic1
+
+      - name: Install Python dependencies
+        working-directory: backend
+        run: pip install -e ".[dev]"
+
+      - name: Run migrations
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql+asyncpg://docintelli:docintelli_dev@localhost:5432/docintelli_test
+          SYNC_DATABASE_URL: postgresql://docintelli:docintelli_dev@localhost:5432/docintelli_test
+          REDIS_URL: redis://localhost:6379/0
+        run: alembic upgrade head
+
+      - name: Run tests
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql+asyncpg://docintelli:docintelli_dev@localhost:5432/docintelli_test
+          SYNC_DATABASE_URL: postgresql://docintelli:docintelli_dev@localhost:5432/docintelli_test
+          TEST_DATABASE_URL: postgresql+asyncpg://docintelli:docintelli_dev@localhost:5432/docintelli_test
+          REDIS_URL: redis://localhost:6379/0
+          GEMINI_API_KEY: test-key
+          JWT_SECRET_KEY: test-jwt-secret
+        run: pytest tests/ -v --tb=short
+
+  # ── Build & Push to ECR ──
+  build-push:
+    runs-on: ubuntu-latest
+    needs: [lint-backend, lint-frontend, test-backend]
+    if: github.ref == 'refs/heads/main'
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to ECR
+        id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build & push backend image
+        env:
+          ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_BACKEND:$IMAGE_TAG -t $ECR_REGISTRY/$ECR_BACKEND:latest backend/
+          docker push $ECR_REGISTRY/$ECR_BACKEND:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_BACKEND:latest
+
+      - name: Build & push frontend image
+        env:
+          ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_FRONTEND:$IMAGE_TAG -t $ECR_REGISTRY/$ECR_FRONTEND:latest frontend/
+          docker push $ECR_REGISTRY/$ECR_FRONTEND:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_FRONTEND:latest
+
+  # ── Deploy to Staging ──
+  deploy-staging:
+    runs-on: ubuntu-latest
+    needs: [build-push]
+    if: github.ref == 'refs/heads/main'
+    environment: staging
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Deploy backend to ECS
+        run: |
+          aws ecs update-service --cluster $ECS_CLUSTER --service docintelli-backend --force-new-deployment
+          aws ecs wait services-stable --cluster $ECS_CLUSTER --services docintelli-backend
+
+      - name: Deploy frontend to ECS
+        run: |
+          aws ecs update-service --cluster $ECS_CLUSTER --service docintelli-frontend --force-new-deployment
+          aws ecs wait services-stable --cluster $ECS_CLUSTER --services docintelli-frontend
+
+      - name: Deploy Celery workers
+        run: |
+          aws ecs update-service --cluster $ECS_CLUSTER --service docintelli-celery --force-new-deployment
+          aws ecs wait services-stable --cluster $ECS_CLUSTER --services docintelli-celery
+
+  # ── Deploy to Production (manual approval) ──
+  deploy-prod:
+    runs-on: ubuntu-latest
+    needs: [deploy-staging]
+    if: github.ref == 'refs/heads/main'
+    environment: production
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Deploy backend to ECS (prod)
+        run: |
+          aws ecs update-service --cluster $ECS_CLUSTER --service docintelli-backend --force-new-deployment
+          aws ecs wait services-stable --cluster $ECS_CLUSTER --services docintelli-backend
+
+      - name: Deploy frontend to ECS (prod)
+        run: |
+          aws ecs update-service --cluster $ECS_CLUSTER --service docintelli-frontend --force-new-deployment
+          aws ecs wait services-stable --cluster $ECS_CLUSTER --services docintelli-frontend
+
+      - name: Deploy Celery workers (prod)
+        run: |
+          aws ecs update-service --cluster $ECS_CLUSTER --service docintelli-celery --force-new-deployment
+          aws ecs wait services-stable --cluster $ECS_CLUSTER --services docintelli-celery
