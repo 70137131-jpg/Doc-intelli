@@ -139,7 +139,7 @@ export default function ChatPage() {
         },
         (event) => {
           if (event.type === "token" || event.type === "chunk") {
-            fullContent += event.data;
+            fullContent += event.data || "";
             setMessages((prev) =>
               prev.map((m) =>
                 m.id === assistantId ? { ...m, content: fullContent } : m
@@ -147,7 +147,7 @@ export default function ChatPage() {
             );
           } else if (event.type === "sources") {
             try {
-              const parsed = JSON.parse(event.data);
+              const parsed = JSON.parse(event.data || "{}");
               sources.push(...(parsed.sources || []));
               setMessages((prev) =>
                 prev.map((m) =>
